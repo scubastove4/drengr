@@ -1,15 +1,25 @@
 {
-  "name": "geofencing_app",
+  "name": "drengr",
   "version": "1.0.0",
   "main": "index.ts",
+  "engines": {
+    "node": ">=20.19.4",
+    "npm": ">=10"
+  },
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "prebuild": "expo prebuild",
+    "ios:pods": "bash -lc 'cd ios && export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 && pod install'",
     "web": "expo start --web"
   },
   "dependencies": {
+    "@rnmapbox/maps": "^10.3.0",
+    "@turf/turf": "^7.3.5",
     "expo": "~54.0.33",
+    "expo-constants": "~18.0.13",
+    "expo-location": "~19.0.8",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
     "react-native": "0.81.5"
