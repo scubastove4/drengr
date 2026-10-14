@@ -47,8 +47,8 @@ arenas/{arena_id}: polygon (GeoJSON)                                  # persiste
 | 1 | Map + live player location (2–5 s updates, only when moving) | **Done** — verified on a physical iPhone |
 | 2 | Geofencing: hardcoded arena polygon, inside/outside, GPS buffer zone, boundary visuals, near-edge warning | **Next** |
 | 3 | Multiplayer sync via Firebase (lat/lng/timestamp only, throttle when idle, rules: write own data, match-only reads) | Planned |
-| 4 | Gameplay loop: shoot button, distance-based hit with radius buffer, cooldown, hit/miss feedback | Planned |
-| 5 | Health, death, respawn; anti-cheat v1 (max speed, impossible jumps, hit-distance checks) | Planned |
+| 4 | Gameplay loop: shoot button, distance-based hit within the 10 m max range, cooldown, hit/miss feedback | Planned |
+| 5 | Health, death, respawn; anti-cheat v1 (max speed, impossible jumps, re-check 10 m range on the receiving side) | Planned |
 | 6 | Persistent stats (kills/deaths), anonymous IDs | Planned |
 | 7 | Direction-based aiming with sensors, wide tolerance, proximity fallback | Optional |
 | 8 | Go backend takes over hit validation, match logic, anti-cheat | Planned |
@@ -67,11 +67,16 @@ arenas/{arena_id}: polygon (GeoJSON)                                  # persiste
 - **Location broadcast:** every 2–3 s and only after moving ≥2 m (check with Turf before sending). Never sub-second.
 - **GPS accuracy:** assume 3–5 m, worse near tall buildings. Smooth location client-side before broadcasting.
 - **Boundaries:** require 2–3 s of sustained out-of-bounds before triggering a violation, to avoid flicker at the edge.
+- **Max hit range: 10 m.** A shot only counts if the target is within 10 m. This is a hard cap from the first version of firing, not a later add-on, so nobody can land a lucky cross-field hit. Any GPS tolerance buffer must stay inside the 10 m, never extend past it. Keep it as one shared constant (e.g. `MAX_HIT_RANGE_M`) so client, Firebase rules, and the Go server all use the same value.
 - **Aiming:** bearing cone of ~15–30° (via `expo-sensors` heading + Turf bearing).
 - **Shot validation (server, eventually Go):** verify range and bearing, reject stale shot timestamps (e.g. 10 s late), enforce cooldown server-side, not only in the UI.
 - **Battery:** foreground-only location during play; warn players the app is GPS/battery heavy; keep matches time-limited.
 
 Go backend order: shot validation first (most cheat-prone), then stats, then arena storage (REST/CRUD, Postgres or Supabase possible). Firebase stays the realtime layer for v1.
+
+## Future consideration: Valkey (not in scope yet)
+
+Valkey (open-source Redis fork) is an in-memory store with pub/sub. In v1, Firebase RTDB already plays the "hot, low-latency live state pushed to clients" role, so don't add Valkey now. Revisit at Phase 8: Go servers would hold live match state in Valkey (positions, cooldowns, rate limits), fan updates out to phones over WebSockets, and write only stats to a database. Valkey key expiry (TTL) also fits the privacy rule, because live positions delete themselves automatically.
 
 ## Current codebase
 
