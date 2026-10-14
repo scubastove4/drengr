@@ -1,0 +1,91 @@
+---
+description: Drengr product vision, architecture, roadmap, and dev environment — the standard guide for this app
+alwaysApply: true
+---
+
+# Drengr — Project Overview
+
+## Product vision
+
+Drengr is a real-world multiplayer mobile game that turns outdoor spaces into FPS arenas. Players move inside a GPS-defined geofenced area and use their phone as both HUD and weapon.
+
+- Each player sees a live map with their own position and heading.
+- Other players stay **hidden** unless an action reveals them (shooting, or stepping out of bounds).
+- Shooting: tap a button; hits are decided by distance first, later by compass bearing (point the phone at a player).
+- Feel: fast, competitive, easy to pick up, fun in small groups — "Call of Duty meets Pokémon GO", grounded in GPS, not 3D graphics.
+- Long term: players draw their own custom arenas, so any outdoor space is a playable map.
+
+**Platform strategy:** iOS-first and iOS-exclusive for now (a deliberate "Halo on Xbox" exclusivity feel). Android may come later; don't spend effort polishing Android unless asked.
+
+## Architecture
+
+```
+Mobile app (React Native + Expo)  →  Firebase Realtime Database  →  (later) Go backend: validation + authority
+```
+
+- **Maps:** Mapbox via `@rnmapbox/maps` (polygons for arenas)
+- **Geo math:** Turf.js, client-side (point-in-polygon, distance, buffers)
+- **Realtime:** Firebase RTDB for live match state (prototype phase)
+- **Authority:** Go backend later — shot validation, match logic, anti-cheat, persistent stats
+
+## Data design
+
+```
+matches/{match_id}/players/{player_id}: lat, lng, timestamp, health   # live, ephemeral
+users/{user_id}: kills, deaths                                        # persistent
+arenas/{arena_id}: polygon (GeoJSON)                                  # persistent
+```
+
+**Privacy rule:** no location history, ever. Only the *current* position is held during an active match. When the match ends, **delete** the match node (not just empty it). Persist only arena shapes and player stats. Player IDs are opaque random tokens — never derived from email, phone, or name. App Store disclosure: "We use location only during active gameplay and never store it."
+
+**Core mental model:** a match is a discrete, bounded event with a start, an end, a fixed set of players, and a cleanup step. Don't treat the app as a continuous stream.
+
+## Roadmap
+
+| Phase | Scope | Status |
+|---|---|---|
+| 1 | Map + live player location (2–5 s updates, only when moving) | **Done** — verified on a physical iPhone |
+| 2 | Geofencing: hardcoded arena polygon, inside/outside, GPS buffer zone, boundary visuals, near-edge warning | **Next** |
+| 3 | Multiplayer sync via Firebase (lat/lng/timestamp only, throttle when idle, rules: write own data, match-only reads) | Planned |
+| 4 | Gameplay loop: shoot button, distance-based hit with radius buffer, cooldown, hit/miss feedback | Planned |
+| 5 | Health, death, respawn; anti-cheat v1 (max speed, impossible jumps, hit-distance checks) | Planned |
+| 6 | Persistent stats (kills/deaths), anonymous IDs | Planned |
+| 7 | Direction-based aiming with sensors, wide tolerance, proximity fallback | Optional |
+| 8 | Go backend takes over hit validation, match logic, anti-cheat | Planned |
+| 9 | Custom arenas: draw polygons, save GeoJSON, limit size/complexity, validate | Planned |
+| 10 | Optimization (battery, network, re-renders) + safety ("be aware of surroundings", clear boundaries) | Planned |
+
+## Design principles
+
+1. **Don't trust the client** — important decisions move server-side over time.
+2. **GPS is imperfect** — always add tolerance buffers.
+3. **Real-time ≠ instant** — expect delay and design around it.
+4. **Keep it simple first** — fun over realism early.
+
+## Concrete tuning values
+
+- **Location broadcast:** every 2–3 s and only after moving ≥2 m (check with Turf before sending). Never sub-second.
+- **GPS accuracy:** assume 3–5 m, worse near tall buildings. Smooth location client-side before broadcasting.
+- **Boundaries:** require 2–3 s of sustained out-of-bounds before triggering a violation, to avoid flicker at the edge.
+- **Aiming:** bearing cone of ~15–30° (via `expo-sensors` heading + Turf bearing).
+- **Shot validation (server, eventually Go):** verify range and bearing, reject stale shot timestamps (e.g. 10 s late), enforce cooldown server-side, not only in the UI.
+- **Battery:** foreground-only location during play; warn players the app is GPS/battery heavy; keep matches time-limited.
+
+Go backend order: shot validation first (most cheat-prone), then stats, then arena storage (REST/CRUD, Postgres or Supabase possible). Firebase stays the realtime layer for v1.
+
+## Current codebase
+
+- Expo SDK 54, React Native 0.81, React 19, TypeScript, New Architecture on (`app.config.ts`).
+- Bundle ID / package `dev.drengr.app`, slug/scheme `drengr`.
+- `App.tsx`: Mapbox Outdoors map, camera follows user with heading, GPS HUD, permission/token-missing screens.
+- `src/hooks/useGameLocation.ts`: foreground GPS stream (4 s / 5 m), exposes a Turf `point` for geofencing.
+- Mapbox token: `EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN` (public `pk.` token) in `.env`, gitignored. Inlined at bundle time by `babel-preset-expo` via `babel.config.js` — keep that file.
+
+## Dev environment notes
+
+- **Expo Go does not work** (Mapbox native module). Use a dev build: `npm run ios` (or Xcode with `ios/Drengr.xcworkspace`) + `npm start`.
+- `ios/` and `android/` are generated and gitignored; regenerate with `npx expo prebuild`.
+- Always use the project-local Expo CLI (`npm start`, `npx expo`, `./node_modules/.bin/expo`). A legacy global `expo-cli` 6.x breaks Mapbox module resolution.
+- CocoaPods must be the Homebrew version (1.16+); the old gem 1.10.2 under system Ruby 2.6 fails. The `ios` and `ios:pods` scripts prepend Homebrew to `PATH` and set `SSL_CERT_FILE`.
+- Node version: `.nvmrc` = 24.15.0.
+- Simulator GPS is fake (defaults near San Francisco); test real location on a physical device.

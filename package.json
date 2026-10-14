@@ -8,10 +8,10 @@
   },
   "scripts": {
     "start": "expo start",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
+    "android": "bash -c 'export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"; export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8; if [ -f /opt/homebrew/etc/openssl@3/cert.pem ]; then export SSL_CERT_FILE=/opt/homebrew/etc/openssl@3/cert.pem SSL_CERT_DIR=/opt/homebrew/etc/openssl@3/certs; elif [ -f /usr/local/etc/openssl@3/cert.pem ]; then export SSL_CERT_FILE=/usr/local/etc/openssl@3/cert.pem SSL_CERT_DIR=/usr/local/etc/openssl@3/certs; fi; exec ./node_modules/.bin/expo run:android'",
+    "ios": "bash -c 'export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"; export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8; if [ -f /opt/homebrew/etc/openssl@3/cert.pem ]; then export SSL_CERT_FILE=/opt/homebrew/etc/openssl@3/cert.pem SSL_CERT_DIR=/opt/homebrew/etc/openssl@3/certs; elif [ -f /usr/local/etc/openssl@3/cert.pem ]; then export SSL_CERT_FILE=/usr/local/etc/openssl@3/cert.pem SSL_CERT_DIR=/usr/local/etc/openssl@3/certs; fi; exec ./node_modules/.bin/expo run:ios'",
     "prebuild": "expo prebuild",
-    "ios:pods": "bash -lc 'cd ios && export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 && pod install'",
+    "ios:pods": "bash -lc 'cd ios && export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\" && if [ -f /opt/homebrew/etc/openssl@3/cert.pem ]; then export SSL_CERT_FILE=/opt/homebrew/etc/openssl@3/cert.pem SSL_CERT_DIR=/opt/homebrew/etc/openssl@3/certs; elif [ -f /usr/local/etc/openssl@3/cert.pem ]; then export SSL_CERT_FILE=/usr/local/etc/openssl@3/cert.pem SSL_CERT_DIR=/usr/local/etc/openssl@3/certs; fi && pod install'",
     "web": "expo start --web"
   },
   "dependencies": {
@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "babel-preset-expo": "~54.0.10",
     "typescript": "~5.9.2"
   },
   "private": true
