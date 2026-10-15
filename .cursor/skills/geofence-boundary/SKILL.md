@@ -71,7 +71,7 @@ The single-reading tradeoff above applies on Android too, and is likely more fre
    - **Placement:** call it in `App.tsx` directly below `useGameLocation`, **before** any early `return` (hooks can't be called conditionally).
    - **Input:** accept `fix: GameLocationFix | null`. A `null` fix is a no-op. Initial state is `{ status: 'inside' }`: nothing is flagged until a fix provides evidence.
    - **State and events:** keep the machine state in a `useRef`. Run `step` in an effect on `fix`, and `tick` in the timer callback. Emit events by calling the game's callback from those handlers, **never from inside a reducer or during render** (React may run reducers twice, which would duplicate events). Mirror `status` into `useState` only if the UI needs to render it. Handling the same fix twice must be harmless.
-   - **Timer:** when the state enters `pending`, schedule a timeout for the time remaining until the grace period elapses; clear it when the state leaves `pending` and on unmount. Calculate the delay as `outSinceMs + OUT_OF_BOUNDS_GRACE_MS - Date.now()` and **clamp it to 0 or more**, because fix timestamps (when the OS recorded the location) and `Date.now()` come from different sources and can disagree. `Date.now()` and `setTimeout` live here only.
+   - **Timer:** when the state enters `pending`, schedule a timeout for the time remaining until the grace period elapses; clear it when the state leaves `pending` and on unmount. Calculate the delay as `outSinceMs + OUT_OF_BOUNDS_GRACE_MS - Date.now()` and **clamp it to 0 or more**, because fix timestamps (when the OS recorded the location) and `Date.now()` come from different sources and can disagree. If `tick` runs and the state is still `pending` (the timer fired before the grace period fully elapsed), schedule a new timeout for the remaining time. `Date.now()` and `setTimeout` live here only.
    - **Permission loss:** `useGameLocation` keeps the last `fix` if permission is revoked mid-match, so a pending timer would act on stale data. How to treat that is an open design question: ask the user, don't assume.
 
 Reference shape (adapt names, keep semantics):
@@ -157,7 +157,7 @@ Then add `"jest": { "preset": "jest-expo" }` to `package.json` and a `"test": "j
 
 **Required cases for `isInsideBoundary`:** points clearly inside, clearly outside, and exactly on the edge, in `[lng, lat]` order, with at least one test that would fail if lng/lat were swapped (use an asymmetric boundary).
 
-**Glue hook.** Once `@testing-library/react-native` is added, test the timer behavior with Jest fake timers: the timeout is set on entering `pending`, cleared on leaving it and on unmount, and fires `tick` once.
+**Glue hook.** Once `@testing-library/react-native` is added, test the timer behavior with Jest fake timers: the timeout is set on entering `pending`, cleared on leaving it and on unmount, and fires `tick` once. If `tick` fires before the grace period has fully elapsed, it raises no event and a new timeout is scheduled for the remaining time.
 
 If a test fails, fix the code, not the test, unless the requirement itself changed with the user's approval.
 
