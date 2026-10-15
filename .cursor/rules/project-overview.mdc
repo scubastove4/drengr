@@ -52,7 +52,7 @@ Every player gets kills, deaths, and distance recorded **per match** and added t
 | 2 | Geofencing: hardcoded arena polygon, inside/outside, GPS buffer zone, boundary visuals, near-edge warning | **Next** |
 | 3 | Multiplayer sync via Firebase (lat/lng/timestamp only, throttle when idle, rules: write own data, match-only reads) | Planned |
 | 4 | Gameplay loop: shoot button, distance-based hit within the 10 m max range, cooldown, hit/miss feedback | Planned |
-| 5 | Health, death, respawn; anti-cheat v1 (max speed, impossible jumps, re-check 10 m range on the receiving side) | Planned |
+| 5 | Health, death, respawn; anti-cheat v1 (max speed, impossible jumps, re-check 10 m range on the receiving side). Also revisit geofence GPS follow-ups below. | Planned |
 | 6 | Persistent stats: kills, deaths, and distance moved, saved per match and as lifetime totals; anonymous IDs | Planned |
 | 7 | Direction-based aiming with sensors, wide tolerance, proximity fallback | Optional |
 | 8 | Go backend takes over hit validation, match logic, anti-cheat | Planned |
@@ -70,7 +70,7 @@ Every player gets kills, deaths, and distance recorded **per match** and added t
 
 - **Location broadcast:** every 2–3 s and only after moving ≥2 m (check with Turf before sending). Never sub-second.
 - **GPS accuracy:** assume 3–5 m, worse near tall buildings. Smooth location client-side before broadcasting.
-- **Boundaries:** require 2–3 s of sustained out-of-bounds before triggering a violation, to avoid flicker at the edge.
+- **Boundaries:** require 2–3 s of sustained out-of-bounds before triggering a violation, to avoid flicker at the edge. Near-edge false positives from GPS jitter are acceptable for Phase 2 (border camping stays risky). Mid-map "teleport" false outs are not — see deferred GPS notes below.
 - **Max hit range: 10 m.** A shot only counts if the target is within 10 m. This is a hard cap from the first version of firing, not a later add-on, so nobody can land a lucky cross-field hit. Any GPS tolerance buffer must stay inside the 10 m, never extend past it. Keep it as one shared constant (e.g. `MAX_HIT_RANGE_M`) so client, Firebase rules, and the Go server all use the same value.
 - **Aiming:** bearing cone of ~15–30° (via `expo-sensors` heading + Turf bearing).
 - **Shot validation (server, eventually Go):** verify range and bearing, reject stale shot timestamps (e.g. 10 s late), enforce cooldown server-side, not only in the UI.
@@ -78,6 +78,13 @@ Every player gets kills, deaths, and distance recorded **per match** and added t
 - **Battery:** foreground-only location during play; warn players the app is GPS/battery heavy; keep matches time-limited.
 
 Go backend order: shot validation first (most cheat-prone), then stats, then arena storage (REST/CRUD, Postgres or Supabase possible). Firebase stays the realtime layer for v1.
+
+## Deferred: geofence GPS follow-ups (Phase 5 or after outdoor testing)
+
+Do not invent tuning numbers until Phase 5 anti-cheat work, or sooner if outdoor physical testing shows a clear need. Ask before implementing.
+
+- **Near-boundary accuracy:** consider raising location accuracy when a player is near the edge (re-subscribe watcher with `Accuracy.High`, or a one-shot `getCurrentPositionAsync`). `expo-location` cannot change accuracy on an existing watch mid-stream. Skip for Phase 2 unless outdoor tests force it; near-edge glitches are an accepted risk for border campers.
+- **Impossible jumps / teleports into out-of-bounds:** Phase 5 already covers max speed and impossible jumps. When that lands (or after outdoor tests), decide how suspect jumps interact with geofence `step`/`tick` — e.g. ignore a fix for violation timing without permanently locking the game position to the old fix, and be careful that the next "correct" fix can reintroduce the same jump. Share max-speed constants with distance-tracking (~7 m/s) where it makes sense.
 
 ## Open question: cloud provider
 
