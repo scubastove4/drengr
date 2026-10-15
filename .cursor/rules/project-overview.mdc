@@ -31,12 +31,16 @@ Mobile app (React Native + Expo)  →  Firebase Realtime Database  →  (later) 
 ## Data design
 
 ```
-matches/{match_id}/players/{player_id}: lat, lng, timestamp, health   # live, ephemeral
-users/{user_id}: kills, deaths                                        # persistent
-arenas/{arena_id}: polygon (GeoJSON)                                  # persistent
+matches/{match_id}/players/{player_id}: lat, lng, timestamp, health        # live, ephemeral
+matchResults/{match_id}: arenaId, endedAt                                   # persistent
+matchResults/{match_id}/players/{player_id}: kills, deaths, distanceM       # persistent, per match
+users/{user_id}: kills, deaths, totalDistanceM                             # persistent, lifetime totals
+arenas/{arena_id}: polygon (GeoJSON)                                        # persistent
 ```
 
-**Privacy rule:** no location history, ever. Only the *current* position is held during an active match. When the match ends, **delete** the match node (not just empty it). Persist only arena shapes and player stats. Player IDs are opaque random tokens — never derived from email, phone, or name. App Store disclosure: "We use location only during active gameplay and never store it."
+Every player gets kills, deaths, and distance recorded **per match** and added to **lifetime totals**. At match end: write `matchResults`, add the same numbers to `users`, then delete the live `matches` node. Results live in a separate node because the live node is deleted, and they never contain coordinates.
+
+**Privacy rule:** no location history, ever. Only the *current* position is held during an active match. When the match ends, **delete** the live match node (not just empty it). Persist only arena shapes and player stats. Player IDs are opaque random tokens — never derived from email, phone, or name. App Store disclosure: "We use location only during active gameplay and never store it."
 
 **Core mental model:** a match is a discrete, bounded event with a start, an end, a fixed set of players, and a cleanup step. Don't treat the app as a continuous stream.
 
@@ -49,7 +53,7 @@ arenas/{arena_id}: polygon (GeoJSON)                                  # persiste
 | 3 | Multiplayer sync via Firebase (lat/lng/timestamp only, throttle when idle, rules: write own data, match-only reads) | Planned |
 | 4 | Gameplay loop: shoot button, distance-based hit within the 10 m max range, cooldown, hit/miss feedback | Planned |
 | 5 | Health, death, respawn; anti-cheat v1 (max speed, impossible jumps, re-check 10 m range on the receiving side) | Planned |
-| 6 | Persistent stats (kills/deaths), anonymous IDs | Planned |
+| 6 | Persistent stats: kills, deaths, and distance moved, saved per match and as lifetime totals; anonymous IDs | Planned |
 | 7 | Direction-based aiming with sensors, wide tolerance, proximity fallback | Optional |
 | 8 | Go backend takes over hit validation, match logic, anti-cheat | Planned |
 | 9 | Custom arenas: draw polygons, save GeoJSON, limit size/complexity, validate | Planned |
@@ -70,9 +74,14 @@ arenas/{arena_id}: polygon (GeoJSON)                                  # persiste
 - **Max hit range: 10 m.** A shot only counts if the target is within 10 m. This is a hard cap from the first version of firing, not a later add-on, so nobody can land a lucky cross-field hit. Any GPS tolerance buffer must stay inside the 10 m, never extend past it. Keep it as one shared constant (e.g. `MAX_HIT_RANGE_M`) so client, Firebase rules, and the Go server all use the same value.
 - **Aiming:** bearing cone of ~15–30° (via `expo-sensors` heading + Turf bearing).
 - **Shot validation (server, eventually Go):** verify range and bearing, reject stale shot timestamps (e.g. 10 s late), enforce cooldown server-side, not only in the UI.
+- **Distance moved:** store only the total, never the path. Sum Turf distances between consecutive GPS fixes on the device during the match, and write one number per player when the match ends. Ignore GPS jitter: skip steps shorter than the fix's reported accuracy (or ~3 m) and steps implying impossible speed (above ~7 m/s, a fast sprint), otherwise a player standing still racks up distance. Store meters; convert to feet/miles or meters/km only for display, based on a user setting.
 - **Battery:** foreground-only location during play; warn players the app is GPS/battery heavy; keep matches time-limited.
 
 Go backend order: shot validation first (most cheat-prone), then stats, then arena storage (REST/CRUD, Postgres or Supabase possible). Firebase stays the realtime layer for v1.
+
+## Open question: cloud provider
+
+Undecided between GCP, AWS, and Azure (goal: build cloud skills on free tiers). GCP is the natural fit because Firebase projects are GCP projects (Go on Cloud Run, Memorystore for Valkey). AWS is the strongest for the job market, but means running alongside Firebase or replacing it. Don't pick or provision a provider without asking. This decision is needed before Phase 8.
 
 ## Future consideration: Valkey (not in scope yet)
 
