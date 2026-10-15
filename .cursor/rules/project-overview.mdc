@@ -92,8 +92,17 @@ Valkey (open-source Redis fork) is an in-memory store with pub/sub. In v1, Fireb
 - Expo SDK 54, React Native 0.81, React 19, TypeScript, New Architecture on (`app.config.ts`).
 - Bundle ID / package `dev.drengr.app`, slug/scheme `drengr`.
 - `App.tsx`: Mapbox Outdoors map, camera follows user with heading, GPS HUD, permission/token-missing screens.
-- `src/hooks/useGameLocation.ts`: foreground GPS stream (4 s / 5 m), exposes a Turf `point` for geofencing.
+- `src/hooks/useGameLocation.ts`: the app's only GPS watcher (call it only from `App.tsx`). Configured as 4 s / 5 m with `Accuracy.Balanced` (~100 m on iOS). On iOS the 4 s `timeInterval` is ignored (it's Android-only), so updates arrive only after 5 m of movement and a stationary player gets none. Game logic should consume its `fix` (which has `accuracyM` and `timestamp` in epoch ms), not `turfPoint`.
+- Geofencing (Phase 2) follows `.cursor/skills/geofence-boundary/SKILL.md`. Keep this file and that skill consistent when either changes.
 - Mapbox token: `EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN` (public `pk.` token) in `.env`, gitignored. Inlined at bundle time by `babel-preset-expo` via `babel.config.js` — keep that file.
+
+## Testing (required)
+
+- Tests are required for all game logic, written before or alongside the code, never after. A feature isn't done until its tests exist and pass. Fix the code, not the test, unless the user approves a requirement change.
+- Keep rules logic (geofence, hit range, distance tracking, anti-cheat checks) in pure functions with no React, Expo, Mapbox or `Date.now()`, so it's unit-testable and can later move to the Go server.
+- Runner: Jest via `jest-expo` (preset in `package.json`, `npm test`). Not set up yet; install with `npx expo install jest-expo jest @types/jest --dev`. `jest-expo` for SDK 54 is built on Jest 29, so check `npm ls jest` afterwards and pin `jest@^29` / `@types/jest@^29` if a newer version was pulled.
+- Co-locate tests as `*.test.ts`. Use fixed timestamps and synthetic data; no real timers or devices in unit tests. Don't mock Turf.
+- Hook/component tests later: `@testing-library/react-native` (check its peer dependencies). Don't test against `react-test-renderer` directly; it's deprecated in React 19.
 
 ## Dev environment notes
 
