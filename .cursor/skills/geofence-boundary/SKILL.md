@@ -98,7 +98,7 @@ export type GeofenceEvent =
 export const GEOFENCE_CONFIG = {
   OUT_OF_BOUNDS_GRACE_MS: 2500, // project requirement: 2-3 s
   MAX_ACCURACY_M: null as number | null, // null = no filtering; see "Sampling, accuracy..."
-  BOUNDARY_BUFFER_M: 5, // expand playable "inside" (invisible)
+  BOUNDARY_BUFFER_M: 5, // expand playable "inside" (dev outline optional)
   NEAR_EDGE_WARNING_M: 15, // banner when inside true arena near edge
 } as const;
 ```
@@ -117,7 +117,7 @@ Transition rules:
 Two geometries (see project overview):
 
 1. **True boundary** — placed arena polygon. Drawn on the map. Never use the buffered shape as the visible border.
-2. **Playable boundary** — `buffer(trueBoundary, BOUNDARY_BUFFER_M, { units: 'meters' })` from `@turf/turf`. Feed **playable** into `isInsideBoundary` / `step` for violations. Do not draw it.
+2. **Playable boundary** — `buffer(trueBoundary, BOUNDARY_BUFFER_M, { units: 'meters' })` from `@turf/turf`. Feed **playable** into `isInsideBoundary` / `step` for violations. Do not draw it in release builds. When `__DEV__` is true, an optional second map outline (distinct style, e.g. dashed) may show the playable ring for outdoor testing only — never as the sole visible arena.
 
 **Near-edge warning (presentation only):**
 
