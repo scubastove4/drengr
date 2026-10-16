@@ -23,6 +23,8 @@ import {
   View,
 } from "react-native";
 import {
+  isNearTrueEdge,
+  playableBoundaryFromTrue,
   squarePolygonFromCenter,
   STOCK_SQUARE_SIDE_M,
 } from "./src/geofence";
@@ -38,6 +40,8 @@ const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ?? "";
 const ARENA_SOURCE_ID = "arena-boundary";
 const ARENA_FILL_ID = "arena-boundary-fill";
 const ARENA_LINE_ID = "arena-boundary-line";
+const PLAYABLE_SOURCE_ID = "arena-playable-boundary";
+const PLAYABLE_LINE_ID = "arena-playable-boundary-line";
 const ARENA_PIN_ID = "arena-center-pin";
 
 const ARENA_FILL_STYLE = {
@@ -50,6 +54,14 @@ const ARENA_LINE_STYLE = {
   lineWidth: 2,
   lineOpacity: 0.9,
 } as const;
+
+/** Dev-only outline of the +5 m playable shoulder (not shown in release). */
+const PLAYABLE_LINE_STYLE = {
+  lineColor: "#ffb14a",
+  lineWidth: 2,
+  lineOpacity: 0.85,
+  lineDasharray: [2, 2] as number[],
+};
 
 /** Setup pick area → setup place arena → gameplay. Home comes later. */
 type Phase = "setup-locate" | "setup-place" | "playing";
@@ -83,7 +95,8 @@ export default function App() {
   const { permission, requestPermission, fix, error, stream } =
     useGameLocation(true);
 
-  const boundary = useMemo(
+  /** True arena — drawn on the map. */
+  const trueBoundary = useMemo(
     () =>
       arenaCenter
         ? squarePolygonFromCenter(arenaCenter, STOCK_SQUARE_SIDE_M)
@@ -91,15 +104,27 @@ export default function App() {
     [arenaCenter],
   );
 
+  /** Invisible +5 m shoulder — violation checks only. */
+  const playableBoundary = useMemo(
+    () => (trueBoundary ? playableBoundaryFromTrue(trueBoundary) : null),
+    [trueBoundary],
+  );
+
   const permissionGranted =
     permission === Location.PermissionStatus.GRANTED;
 
-  // Geofence only during gameplay (skill / overview).
+  // Geofence only during gameplay; feed playable (buffered) boundary.
   const { status: geofenceStatus } = useGeofence(
     fix,
-    phase === "playing" ? boundary : null,
+    phase === "playing" ? playableBoundary : null,
     { permissionGranted },
   );
+
+  const nearTrueEdge =
+    phase === "playing" &&
+    fix != null &&
+    trueBoundary != null &&
+    isNearTrueEdge([fix.longitude, fix.latitude], trueBoundary);
 
   useEffect(() => {
     if (!MAPBOX_TOKEN) return;
@@ -184,7 +209,9 @@ export default function App() {
       ? "OUT OF BOUNDS"
       : geofenceStatus === "pending"
         ? "Leaving arena…"
-        : "In bounds";
+        : nearTrueEdge
+          ? "Near boundary"
+          : "In bounds";
 
   if (Platform.OS === "web") {
     return (
@@ -312,10 +339,15 @@ export default function App() {
           minDisplacement={5}
           animated
         />
-        {showArena && boundary ? (
-          <ShapeSource id={ARENA_SOURCE_ID} shape={boundary}>
+        {showArena && trueBoundary ? (
+          <ShapeSource id={ARENA_SOURCE_ID} shape={trueBoundary}>
             <FillLayer id={ARENA_FILL_ID} style={ARENA_FILL_STYLE} />
             <LineLayer id={ARENA_LINE_ID} style={ARENA_LINE_STYLE} />
+          </ShapeSource>
+        ) : null}
+        {__DEV__ && showArena && playableBoundary ? (
+          <ShapeSource id={PLAYABLE_SOURCE_ID} shape={playableBoundary}>
+            <LineLayer id={PLAYABLE_LINE_ID} style={PLAYABLE_LINE_STYLE} />
           </ShapeSource>
         ) : null}
         {showPlacePin ? (
@@ -343,6 +375,9 @@ export default function App() {
             styles.geofenceBanner,
             geofenceStatus === "violating" && styles.geofenceBannerViolating,
             geofenceStatus === "pending" && styles.geofenceBannerPending,
+            geofenceStatus === "inside" &&
+              nearTrueEdge &&
+              styles.geofenceBannerNearEdge,
           ]}
           pointerEvents="none"
         >
@@ -351,6 +386,9 @@ export default function App() {
               styles.geofenceBannerText,
               geofenceStatus === "violating" &&
                 styles.geofenceBannerTextViolating,
+              geofenceStatus === "inside" &&
+                nearTrueEdge &&
+                styles.geofenceBannerTextNearEdge,
             ]}
           >
             {geofenceLabel}
@@ -443,6 +481,10 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,200,100,0.7)",
     backgroundColor: "rgba(40,30,10,0.9)",
   },
+  geofenceBannerNearEdge: {
+    borderColor: "rgba(255,180,80,0.75)",
+    backgroundColor: "rgba(45,32,12,0.9)",
+  },
   geofenceBannerViolating: {
     borderColor: "rgba(255,100,90,0.85)",
     backgroundColor: "rgba(50,12,12,0.92)",
@@ -453,6 +495,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.4,
     textAlign: "center",
+  },
+  geofenceBannerTextNearEdge: {
+    color: "#ffd09a",
   },
   geofenceBannerTextViolating: {
     color: "#ffb4ac",
