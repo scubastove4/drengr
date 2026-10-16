@@ -49,7 +49,7 @@ Every player gets kills, deaths, and distance recorded **per match** and added t
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Map + live player location (2–5 s updates, only when moving) | **Done** — verified on a physical iPhone |
-| 2 | Geofencing: hardcoded arena polygon, inside/outside, GPS buffer zone, boundary visuals, near-edge warning | **Next** |
+| 2 | Geofencing: placable 120 m stock square, inside/outside, boundary visuals, violation HUD (grace + sit-still `tick`). Buffer zone + near-edge warning deferred (preferred: ~5 m inside expand, ~15 m warning). | **In progress** |
 | 3 | Multiplayer sync via Firebase (lat/lng/timestamp only, throttle when idle, rules: write own data, match-only reads) | Planned |
 | 4 | Gameplay loop: shoot button, distance-based hit within the 10 m max range, cooldown, hit/miss feedback | Planned |
 | 5 | Health, death, respawn; anti-cheat v1 (max speed, impossible jumps, re-check 10 m range on the receiving side). Also revisit geofence GPS follow-ups below. | Planned |
@@ -83,6 +83,7 @@ Go backend order: shot validation first (most cheat-prone), then stats, then are
 
 Do not invent tuning numbers until Phase 5 anti-cheat work, or sooner if outdoor physical testing shows a clear need. Ask before implementing.
 
+- **Buffer zone + near-edge warning:** preferred when revisited — expand what counts as “inside” by ~5 m (GPS jitter tolerance); show a near-edge warning within ~15 m of the true boundary (presentation only; must never feed violation state). Not implemented in the current Phase 2 pass.
 - **Near-boundary accuracy:** consider raising location accuracy when a player is near the edge (re-subscribe watcher with `Accuracy.High`, or a one-shot `getCurrentPositionAsync`). `expo-location` cannot change accuracy on an existing watch mid-stream. Skip for Phase 2 unless outdoor tests force it; near-edge glitches are an accepted risk for border campers.
 - **Impossible jumps / teleports into out-of-bounds:** Phase 5 already covers max speed and impossible jumps. When that lands (or after outdoor tests), decide how suspect jumps interact with geofence `step`/`tick` — e.g. ignore a fix for violation timing without permanently locking the game position to the old fix, and be careful that the next "correct" fix can reintroduce the same jump. Share max-speed constants with distance-tracking (~7 m/s) where it makes sense.
 
@@ -94,12 +95,27 @@ Undecided between GCP, AWS, and Azure (goal: build cloud skills on free tiers). 
 
 Valkey (open-source Redis fork) is an in-memory store with pub/sub. In v1, Firebase RTDB already plays the "hot, low-latency live state pushed to clients" role, so don't add Valkey now. Revisit at Phase 8: Go servers would hold live match state in Valkey (positions, cooldowns, rate limits), fan updates out to phones over WebSockets, and write only stats to a database. Valkey key expiry (TTL) also fits the privacy rule, because live positions delete themselves automatically.
 
+## App flow (screens)
+
+Match flow is staged. Do not treat the map as always-editable once a match has started.
+
+1. **Home** (not built yet — document only for now): entry point into setup; after Phase 3, invite other players from here. Skip implementing a full home UI until asked.
+2. **Setup — pick area:** user pans/zooms the map freely to choose where to play, then confirms.
+3. **Setup — place arena:** on confirm, `fitBounds` so the full 120 m stock square is on screen (with padding). Pan/scroll stays locked; **zoom stays enabled** so the user can zoom out further if needed. Camera must not glue to the moving pin. User taps the map to move the arena center, then confirms placement. That locks the arena coordinates for the match. (Pin drag is unreliable with pan locked on Mapbox RN, so tap-to-place is the supported control.)
+4. **Gameplay:** arena stays fixed at the confirmed coordinates (camera pan must never move the polygon). Map gestures are unlocked again so the player can look around; camera may follow the user. Geofence rules run only in this phase. Out-of-bounds flagging / reveal behavior applies here.
+
+**Deferred presentation / UI (document only — ask before implementing):**
+- Arena fill off / transparent interior with border only; tighter gameplay camera zoom so the player’s “field of view” is smaller and the full square is not always on screen.
+- Setup `fitBounds` padding: today a fixed point inset (`PLACE_FIT_PADDING`) clears banners/HUD. Later, derive padding from **safe-area insets + measured chrome height** so small phones, Dynamic Island, and home-indicator devices get consistent framing. Padding stays in screen points, not meters; arena size still comes from the polygon bbox.
+
 ## Current codebase
 
 - Expo SDK 54, React Native 0.81, React 19, TypeScript, New Architecture on (`app.config.ts`).
 - Bundle ID / package `dev.drengr.app`, slug/scheme `drengr`.
-- `App.tsx`: Mapbox Outdoors map, camera follows user with heading, GPS HUD, permission/token-missing screens.
+- `App.tsx`: Mapbox Outdoors map; setup (pick area → place arena) then gameplay; GPS HUD; geofence status banner; permission/token-missing screens.
 - `src/hooks/useGameLocation.ts`: the app's only GPS watcher (call it only from `App.tsx`). Configured as 4 s / 5 m with `Accuracy.Balanced` (~100 m on iOS). On iOS the 4 s `timeInterval` is ignored (it's Android-only), so updates arrive only after 5 m of movement and a stationary player gets none. Game logic should consume its `fix` (which has `accuracyM` and `timestamp` in epoch ms), not `turfPoint`.
+- `src/hooks/useGeofence.ts`: glue over pure geofence rules; takes `fix` + boundary; owns grace timer and immediate violate on permission revoke while pending/out.
+- `src/geofence/`: pure `isInsideBoundary`, `step`/`tick`/`forceViolation`, `squarePolygonFromCenter` (+ tests). No React/Expo/Mapbox/`Date.now()` in the pure functions.
 - Geofencing (Phase 2) follows `.cursor/skills/geofence-boundary/SKILL.md`. Keep this file and that skill consistent when either changes.
 - Mapbox token: `EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN` (public `pk.` token) in `.env`, gitignored. Inlined at bundle time by `babel-preset-expo` via `babel.config.js` — keep that file.
 
@@ -107,7 +123,7 @@ Valkey (open-source Redis fork) is an in-memory store with pub/sub. In v1, Fireb
 
 - Tests are required for all game logic, written before or alongside the code, never after. A feature isn't done until its tests exist and pass. Fix the code, not the test, unless the user approves a requirement change.
 - Keep rules logic (geofence, hit range, distance tracking, anti-cheat checks) in pure functions with no React, Expo, Mapbox or `Date.now()`, so it's unit-testable and can later move to the Go server.
-- Runner: Jest via `jest-expo` (preset in `package.json`, `npm test`). Not set up yet; install with `npx expo install jest-expo jest @types/jest --dev`. `jest-expo` for SDK 54 is built on Jest 29, so check `npm ls jest` afterwards and pin `jest@^29` / `@types/jest@^29` if a newer version was pulled.
+- Runner: Jest via `jest-expo` (preset in `package.json`, `npm test`). Installed with Jest 29 (`jest@~29.7`, `@types/jest@29.5`).
 - Co-locate tests as `*.test.ts`. Use fixed timestamps and synthetic data; no real timers or devices in unit tests. Don't mock Turf.
 - Hook/component tests later: `@testing-library/react-native` (check its peer dependencies). Don't test against `react-test-renderer` directly; it's deprecated in React 19.
 

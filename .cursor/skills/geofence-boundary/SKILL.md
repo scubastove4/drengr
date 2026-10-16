@@ -72,7 +72,7 @@ The single-reading tradeoff above applies on Android too, and is likely more fre
    - **Input:** accept `fix: GameLocationFix | null`. A `null` fix is a no-op. Initial state is `{ status: 'inside' }`: nothing is flagged until a fix provides evidence.
    - **State and events:** keep the machine state in a `useRef`. Run `step` in an effect on `fix`, and `tick` in the timer callback. Emit events by calling the game's callback from those handlers, **never from inside a reducer or during render** (React may run reducers twice, which would duplicate events). Mirror `status` into `useState` only if the UI needs to render it. Handling the same fix twice must be harmless.
    - **Timer:** when the state enters `pending`, schedule a timeout for the time remaining until the grace period elapses; clear it when the state leaves `pending` and on unmount. Calculate the delay as `outSinceMs + OUT_OF_BOUNDS_GRACE_MS - Date.now()` and **clamp it to 0 or more**, because fix timestamps (when the OS recorded the location) and `Date.now()` come from different sources and can disagree. If `tick` runs and the state is still `pending` (the timer fired before the grace period fully elapsed), schedule a new timeout for the remaining time. `Date.now()` and `setTimeout` live here only.
-   - **Permission loss:** `useGameLocation` keeps the last `fix` if permission is revoked mid-match, so a pending timer would act on stale data. How to treat that is an open design question: ask the user, don't assume.
+   - **Permission loss:** `useGameLocation` keeps the last `fix` if permission is revoked mid-match. If status is `pending` or `violating` when foreground permission drops below granted, clear the timer and call `forceViolation` so a pending player becomes `violating` immediately (one `violation-started` if not already violating). Do not reset to `inside` — that would let players toggle location to dodge a reveal.
 
 Reference shape (adapt names, keep semantics):
 
@@ -111,9 +111,13 @@ Transition rules:
 
 ## Buffer zone and near-edge warning
 
-`.cursor/rules/project-overview.mdc` names both (Phase 2) and states a general tolerance-buffer principle, but does not define their exact semantics. Follow its principles and **ask the user for the specifics before implementing either.** A tolerance buffer that changes what counts as out-of-bounds is a rule change.
+Deferred past the current Phase 2 core pass. Preferred when revisited (see project overview): expand “inside” by ~5 m; near-edge warning within ~15 m of the true boundary. A tolerance buffer that changes what counts as out-of-bounds is a rule change — confirm before implementing.
 
 A near-edge **warning** is presentation only and must never feed violation state. Candidate Turf functions that exist in the installed typings: `pointToPolygonDistance`, `polygonToLine`, `nearestPointOnLine`, `buffer`. Existence is confirmed, but check units and sign conventions (inside vs outside) in the typings before relying on them.
+
+## Match phases vs geofence
+
+App flow (home → setup pick area → setup place arena → gameplay) lives in `.cursor/rules/project-overview.mdc`. Geofence rules apply **only in gameplay**. During setup, do not feed a live boundary into `useGeofence` (pass `null` / skip `step`) so placing or dragging the square cannot raise violations. After arena confirm, the polygon coordinates are fixed for the match — panning the camera must not move them.
 
 ## Mapbox (React Native, `@rnmapbox/maps` 10.3.0)
 
@@ -121,20 +125,16 @@ A near-edge **warning** is presentation only and must never feed violation state
 - Draw the boundary inside the existing `MapView` in `App.tsx` using `ShapeSource` (props `id`, `shape`) with `LineLayer` and/or `FillLayer` (props `id`, `sourceID`, `style`). Do not invent props; check `node_modules/@rnmapbox/maps/lib/typescript` for style keys.
 - Keep source/layer IDs in constants and define the boundary at module scope so its object identity is stable.
 - Drawing the boundary is presentation only. It is never the source of truth for violation state.
+- **`PointAnnotation`:** at most **one** child view (plus an optional callout). Nested subviews throw a native error. While pan is locked for setup-place, annotation drag is unreliable — prefer **tap-to-place** (`MapView` `onPress`) to move the arena; keep the pin as a marker, not the primary control.
+- On entering setup-place, call `Camera` `fitBounds` on the stock square (Turf `bbox` → NE/SW) with padding so the full arena is visible. Do **not** re-fit on every tap move. Do **not** bind `Camera` `centerCoordinate` to the moving arena pin.
+- Setup-place: lock pan/scroll (`scrollEnabled` / `gestureSettings.panEnabled`); keep **zoom enabled** (`zoomEnabled`, pinch zoom). Verify props against installed typings.
+- Do not mount the setup map until a GPS fix exists for the initial camera center; Mapbox’s default without a center is ~`[0,0]` (Atlantic).
 
 ## Testing (required, test-first)
 
 The user wants tests from the start. **Write tests before or alongside the implementation, never after.** Do not consider `step`, `tick` or `isInsideBoundary` done until their tests exist and pass.
 
-**Setup (not yet done in this repo).** Follow the Expo "Unit testing with Jest" docs, using the project-local CLI:
-
-```
-npx expo install jest-expo jest @types/jest --dev
-```
-
-Then add `"jest": { "preset": "jest-expo" }` to `package.json` and a `"test": "jest"` script.
-
-**Verify Jest versions after installing.** `jest-expo` for SDK 54 is built on Jest 29, and `expo install` may pull a newer `jest`/`@types/jest`. Run `npm ls jest` and check it matches what `jest-expo` depends on. If it doesn't, pin `jest@^29` and `@types/jest@^29`.
+**Setup.** Jest is installed (`jest-expo` preset, `npm test`, Jest 29). Keep it that way.
 
 `react-test-renderer` is deprecated in React 19; don't write tests directly against it. For hook/component tests later, use `@testing-library/react-native`, and check its peer dependencies when adding it. Check the Expo docs for the installed SDK if anything here seems out of date.
 
