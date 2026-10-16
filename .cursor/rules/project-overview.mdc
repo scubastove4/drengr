@@ -49,7 +49,7 @@ Every player gets kills, deaths, and distance recorded **per match** and added t
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Map + live player location (2–5 s updates, only when moving) | **Done** — verified on a physical iPhone |
-| 2 | Geofencing: placable 120 m stock square, inside/outside, boundary visuals, violation HUD (grace + sit-still `tick`). Buffer zone + near-edge warning deferred (preferred: ~5 m inside expand, ~15 m warning). | **In progress** |
+| 2 | Geofencing: placable 120 m stock square, inside/outside, boundary visuals, violation HUD (grace + sit-still `tick`), ~5 m playable buffer, ~15 m near-edge warning banner. | **In progress** |
 | 3 | Multiplayer sync via Firebase (lat/lng/timestamp only, throttle when idle, rules: write own data, match-only reads) | Planned |
 | 4 | Gameplay loop: shoot button, distance-based hit within the 10 m max range, cooldown, hit/miss feedback | Planned |
 | 5 | Health, death, respawn; anti-cheat v1 (max speed, impossible jumps, re-check 10 m range on the receiving side). Also revisit geofence GPS follow-ups below. | Planned |
@@ -70,7 +70,7 @@ Every player gets kills, deaths, and distance recorded **per match** and added t
 
 - **Location broadcast:** every 2–3 s and only after moving ≥2 m (check with Turf before sending). Never sub-second.
 - **GPS accuracy:** assume 3–5 m, worse near tall buildings. Smooth location client-side before broadcasting.
-- **Boundaries:** require 2–3 s of sustained out-of-bounds before triggering a violation, to avoid flicker at the edge. Near-edge false positives from GPS jitter are acceptable for Phase 2 (border camping stays risky). Mid-map "teleport" false outs are not — see deferred GPS notes below.
+- **Boundaries:** require 2–3 s of sustained out-of-bounds before triggering a violation, to avoid flicker at the edge. Playable area = true arena expanded by **`BOUNDARY_BUFFER_M` (~5 m)** (invisible). Near-edge warning when inside the **true** arena and within **`NEAR_EDGE_WARNING_M` (~15 m)** of the true edge (banner for now; does not affect violation state). Mid-map "teleport" false outs are not acceptable — see deferred GPS notes below.
 - **Max hit range: 10 m.** A shot only counts if the target is within 10 m. This is a hard cap from the first version of firing, not a later add-on, so nobody can land a lucky cross-field hit. Any GPS tolerance buffer must stay inside the 10 m, never extend past it. Keep it as one shared constant (e.g. `MAX_HIT_RANGE_M`) so client, Firebase rules, and the Go server all use the same value.
 - **Aiming:** bearing cone of ~15–30° (via `expo-sensors` heading + Turf bearing).
 - **Shot validation (server, eventually Go):** verify range and bearing, reject stale shot timestamps (e.g. 10 s late), enforce cooldown server-side, not only in the UI.
@@ -79,13 +79,22 @@ Every player gets kills, deaths, and distance recorded **per match** and added t
 
 Go backend order: shot validation first (most cheat-prone), then stats, then arena storage (REST/CRUD, Postgres or Supabase possible). Firebase stays the realtime layer for v1.
 
+## Geofence: true boundary vs playable buffer
+
+- **True boundary:** the placed stock square (GeoJSON). Drawn on the map; source of truth for “the arena” players see.
+- **Playable boundary:** true boundary expanded outward by `BOUNDARY_BUFFER_M` (~5 m). Used only for violation `inside` checks (`step`/`tick`). **Not drawn** (invisible soft shoulder for GPS jitter).
+- **Near-edge warning:** if the player is **inside the true boundary** and within `NEAR_EDGE_WARNING_M` (~15 m) of the true edge → show a **banner** (Phase 2). Presentation only — must never feed geofence machine state. Not shown when outside the true arena (including in the soft buffer).
+- **Future warning visual (not now):** optional map treatment such as a red gradient between the player’s GPS position and the true boundary; ask before implementing.
+
+Tune 5 m / 15 m after outdoor testing if needed.
+
 ## Deferred: geofence GPS follow-ups (Phase 5 or after outdoor testing)
 
 Do not invent tuning numbers until Phase 5 anti-cheat work, or sooner if outdoor physical testing shows a clear need. Ask before implementing.
 
-- **Buffer zone + near-edge warning:** preferred when revisited — expand what counts as “inside” by ~5 m (GPS jitter tolerance); show a near-edge warning within ~15 m of the true boundary (presentation only; must never feed violation state). Not implemented in the current Phase 2 pass.
-- **Near-boundary accuracy:** consider raising location accuracy when a player is near the edge (re-subscribe watcher with `Accuracy.High`, or a one-shot `getCurrentPositionAsync`). `expo-location` cannot change accuracy on an existing watch mid-stream. Skip for Phase 2 unless outdoor tests force it; near-edge glitches are an accepted risk for border campers.
+- **Near-boundary accuracy:** consider raising location accuracy when a player is near the edge (re-subscribe watcher with `Accuracy.High`, or a one-shot `getCurrentPositionAsync`). `expo-location` cannot change accuracy on an existing watch mid-stream. Skip unless outdoor tests force it; near-edge glitches remain an accepted risk for border campers.
 - **Impossible jumps / teleports into out-of-bounds:** Phase 5 already covers max speed and impossible jumps. When that lands (or after outdoor tests), decide how suspect jumps interact with geofence `step`/`tick` — e.g. ignore a fix for violation timing without permanently locking the game position to the old fix, and be careful that the next "correct" fix can reintroduce the same jump. Share max-speed constants with distance-tracking (~7 m/s) where it makes sense.
+- **Permission revoke detection:** `forceViolation` on revoke while pending/out is specified, but the app must re-check foreground permission (e.g. on AppState active) for that path to run after Settings changes — still to wire.
 
 ## Open question: cloud provider
 
@@ -107,6 +116,7 @@ Match flow is staged. Do not treat the map as always-editable once a match has s
 **Deferred presentation / UI (document only — ask before implementing):**
 - Arena fill off / transparent interior with border only; tighter gameplay camera zoom so the player’s “field of view” is smaller and the full square is not always on screen.
 - Setup `fitBounds` padding: today a fixed point inset (`PLACE_FIT_PADDING`) clears banners/HUD. Later, derive padding from **safe-area insets + measured chrome height** so small phones, Dynamic Island, and home-indicator devices get consistent framing. Padding stays in screen points, not meters; arena size still comes from the polygon bbox.
+- Near-edge **map** visual (e.g. red gradient between player GPS and true boundary); Phase 2 uses a banner only.
 
 ## Current codebase
 
@@ -115,7 +125,7 @@ Match flow is staged. Do not treat the map as always-editable once a match has s
 - `App.tsx`: Mapbox Outdoors map; setup (pick area → place arena) then gameplay; GPS HUD; geofence status banner; permission/token-missing screens.
 - `src/hooks/useGameLocation.ts`: the app's only GPS watcher (call it only from `App.tsx`). Configured as 4 s / 5 m with `Accuracy.Balanced` (~100 m on iOS). On iOS the 4 s `timeInterval` is ignored (it's Android-only), so updates arrive only after 5 m of movement and a stationary player gets none. Game logic should consume its `fix` (which has `accuracyM` and `timestamp` in epoch ms), not `turfPoint`.
 - `src/hooks/useGeofence.ts`: glue over pure geofence rules; takes `fix` + boundary; owns grace timer and immediate violate on permission revoke while pending/out.
-- `src/geofence/`: pure `isInsideBoundary`, `step`/`tick`/`forceViolation`, `squarePolygonFromCenter` (+ tests). No React/Expo/Mapbox/`Date.now()` in the pure functions.
+- `src/geofence/`: pure `isInsideBoundary`, `playableBoundaryFromTrue`, `isNearTrueEdge`, `step`/`tick`/`forceViolation`, `squarePolygonFromCenter` (+ tests). No React/Expo/Mapbox/`Date.now()` in the pure functions.
 - Geofencing (Phase 2) follows `.cursor/skills/geofence-boundary/SKILL.md`. Keep this file and that skill consistent when either changes.
 - Mapbox token: `EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN` (public `pk.` token) in `.env`, gitignored. Inlined at bundle time by `babel-preset-expo` via `babel.config.js` — keep that file.
 

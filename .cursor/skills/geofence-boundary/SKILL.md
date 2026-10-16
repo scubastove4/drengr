@@ -71,8 +71,9 @@ The single-reading tradeoff above applies on Android too, and is likely more fre
    - **Placement:** call it in `App.tsx` directly below `useGameLocation`, **before** any early `return` (hooks can't be called conditionally).
    - **Input:** accept `fix: GameLocationFix | null`. A `null` fix is a no-op. Initial state is `{ status: 'inside' }`: nothing is flagged until a fix provides evidence.
    - **State and events:** keep the machine state in a `useRef`. Run `step` in an effect on `fix`, and `tick` in the timer callback. Emit events by calling the game's callback from those handlers, **never from inside a reducer or during render** (React may run reducers twice, which would duplicate events). Mirror `status` into `useState` only if the UI needs to render it. Handling the same fix twice must be harmless.
-   - **Timer:** when the state enters `pending`, schedule a timeout for the time remaining until the grace period elapses; clear it when the state leaves `pending` and on unmount. Calculate the delay as `outSinceMs + OUT_OF_BOUNDS_GRACE_MS - Date.now()` and **clamp it to 0 or more**, because fix timestamps (when the OS recorded the location) and `Date.now()` come from different sources and can disagree. If `tick` runs and the state is still `pending` (the timer fired before the grace period fully elapsed), schedule a new timeout for the remaining time. `Date.now()` and `setTimeout` live here only.
-   - **Permission loss:** `useGameLocation` keeps the last `fix` if permission is revoked mid-match. If status is `pending` or `violating` when foreground permission drops below granted, clear the timer and call `forceViolation` so a pending player becomes `violating` immediately (one `violation-started` if not already violating). Do not reset to `inside` — that would let players toggle location to dodge a reveal.
+   - **Timer:** when the state enters `pending`, schedule a timeout for the time remaining until the grace period elapses; clear it when the state leaves `pending` and on unmount. Calculate the delay as `outSinceMs + OUT_OF_BOUNDS_GRACE_MS - Date.now()` and **clamp it to 0 or more**. If `tick` runs and the state is still `pending` (the timer fired before the grace period fully elapsed), schedule a new timeout for the remaining time. `Date.now()` and `setTimeout` live here only.
+   - **Stale GPS vs grace (required):** on iOS a stationary player’s last fix can be seconds/minutes old. If `outSinceMs` stays as that fix’s `timestampMs`, the timer delay clamps to 0 and violation fires immediately. When `step` first transitions into `pending`, the glue must set `outSinceMs` to **`Date.now()`** (wall clock) before scheduling the timer, so grace is ~2.5 s of real time. Pure `step` may still stamp `fix.timestampMs`; overwrite only on the enter-pending transition. Do not rewrite `outSinceMs` on later outside fixes while already `pending`.
+   - **Permission loss:** `useGameLocation` keeps the last `fix` if permission is revoked mid-match. If status is `pending` or `violating` when foreground permission drops below granted, clear the timer and call `forceViolation` so a pending player becomes `violating` immediately (one `violation-started` if not already violating). Do not reset to `inside` — that would let players toggle location to dodge a reveal. Re-check permission when the app becomes active; otherwise Settings revoke never flips `permissionGranted`.
 
 Reference shape (adapt names, keep semantics):
 
@@ -97,6 +98,8 @@ export type GeofenceEvent =
 export const GEOFENCE_CONFIG = {
   OUT_OF_BOUNDS_GRACE_MS: 2500, // project requirement: 2-3 s
   MAX_ACCURACY_M: null as number | null, // null = no filtering; see "Sampling, accuracy..."
+  BOUNDARY_BUFFER_M: 5, // expand playable "inside" (invisible)
+  NEAR_EDGE_WARNING_M: 15, // banner when inside true arena near edge
 } as const;
 ```
 
@@ -104,16 +107,25 @@ Transition rules:
 
 - `step`, `accuracyM` is a number and `MAX_ACCURACY_M` is not null and `accuracyM > MAX_ACCURACY_M`: ignore. No state change, no event. A `null` accuracy is never ignored.
 - `step`, inside fix: go to `inside`. If the previous state was `violating`, emit `violation-cleared`.
-- `step`, outside fix while `inside`: go to `pending` with `outSinceMs = fix.timestampMs`.
+- `step`, outside fix while `inside`: go to `pending` with `outSinceMs = fix.timestampMs` (glue then wall-clock-corrects — see Timer / Stale GPS).
 - `step`, outside fix while `pending`: if `fix.timestampMs - outSinceMs >= OUT_OF_BOUNDS_GRACE_MS`, go to `violating` and emit `violation-started`; otherwise stay `pending` (keep the original `outSinceMs`).
 - `step`, outside fix while `violating`: no change, no event.
 - `tick`, state is `pending` and `nowMs - outSinceMs >= OUT_OF_BOUNDS_GRACE_MS`: go to `violating` and emit `violation-started`. In any other state, or if the grace period hasn't elapsed: no change, no event.
 
 ## Buffer zone and near-edge warning
 
-Deferred past the current Phase 2 core pass. Preferred when revisited (see project overview): expand “inside” by ~5 m; near-edge warning within ~15 m of the true boundary. A tolerance buffer that changes what counts as out-of-bounds is a rule change — confirm before implementing.
+Two geometries (see project overview):
 
-A near-edge **warning** is presentation only and must never feed violation state. Candidate Turf functions that exist in the installed typings: `pointToPolygonDistance`, `polygonToLine`, `nearestPointOnLine`, `buffer`. Existence is confirmed, but check units and sign conventions (inside vs outside) in the typings before relying on them.
+1. **True boundary** — placed arena polygon. Drawn on the map. Never use the buffered shape as the visible border.
+2. **Playable boundary** — `buffer(trueBoundary, BOUNDARY_BUFFER_M, { units: 'meters' })` from `@turf/turf`. Feed **playable** into `isInsideBoundary` / `step` for violations. Do not draw it.
+
+**Near-edge warning (presentation only):**
+
+- Pure helper e.g. `isNearTrueEdge(coord, trueBoundary, warningM)` using `pointToPolygonDistance` from `@turf/turf` with `units: 'meters'`. In the installed Turf version, distance is **negative inside** the polygon and **positive outside**. Warn only when **inside the true boundary** and within `NEAR_EDGE_WARNING_M` of the edge (e.g. `-warningM <= distance <= 0`). Do **not** warn when outside the true arena (including soft buffer).
+- Must never call `step`/`tick` or alter geofence status.
+- Phase 2 UI: **banner** only. Future (document only): map visual such as a red gradient between the player GPS position and the true boundary — ask before implementing.
+
+Confirm units/sign in typings before relying on other Turf distance helpers. Don't invent buffer meters beyond the named config constants.
 
 ## Match phases vs geofence
 
