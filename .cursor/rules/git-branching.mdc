@@ -9,30 +9,32 @@ Phases and their order are defined in `project-overview.mdc`. Don't redefine the
 
 ## Transition
 
-Phases 1-2 were developed before this strategy existed. Until Phase 2 is merged to `main`, keep working on the current branch and ignore the rules below about branch structure, flow, and direct commits. The strategy applies in full from Phase 3: the first release branch under it is `release/phase-3-<short-name>`, cut from `main` after Phase 2 is merged.
+Phases 1-2 were developed before this strategy existed. Until Phase 2 is merged to `main`, keep working on the current branch and ignore the rules below about branch structure, flow, and direct commits. The strategy applies in full from Phase 3: the first release branch under it is `release/phase-3-multiplayer`, cut from `main` after Phase 2 is merged.
 
-(Delete this section once Phase 3 has started.)
+After Phase 2 is completed and merged to `main`, the agent may remove this Transition section or mark it completed (ask before choosing to remove this section or choosing to mark it completed).
 
 ## Structure
 
 - `main` holds completed phases only.
-- Each phase has one **release branch**: `release/phase-<n>-<short-name>`, using the phase number and name from `project-overview.mdc`. It is cut from `main` when the phase starts.
+- Each phase has one **release branch**: `release/phase-<n>-<short-name>`, using the phase number and a short name from `project-overview.mdc`. Examples: `release/phase-3-multiplayer`, `release/phase-4-game-mechanics`. Cut from `main` when the phase starts.
 - All work happens on **feature branches** cut from the current phase's release branch: `feature/<short-description>`.
 - Keep each feature branch to one focused change.
+- No hotfix branches for now. Ship only through the phase release flow.
 
 ## Flow
 
 1. Cut `release/phase-<n>-<short-name>` from `main` at the start of a phase.
 2. Cut `feature/<short-description>` from that release branch.
-3. When the feature is done, open a pull request into the release branch. Tests must pass first.
-4. Merge the feature into the release branch with a **squash merge**. Delete the feature branch afterward and don't reuse it; start a new branch for follow-up work.
-5. When the phase is complete, merge the release branch into `main` with a **merge commit** (no squash), so each feature's commit stays visible in `main`'s history.
+3. When the feature is done, the agent may ask to open a pull request into the release branch; the user merges. Tests must pass first (`npm test`; later CI when present).
+4. Merge the feature into the release branch with a **squash merge** (one squash commit per feature on the release branch). Delete the feature branch afterward and don't reuse it; start a new branch for follow-up work.
+5. When the phase is complete, merge the release branch into `main` with a **merge commit** (no squash), so each feature's squash commit stays visible in `main`'s history and remains individually revertable.
 6. Cut the next phase's release branch from `main` only after the previous phase has been merged.
 
 ## Merge style
 
 - Feature into release: squash merge, one clean commit per feature.
 - Release into main: merge commit, no squash, so features remain traceable and revertable individually.
+- The user performs merges. The agent may ask to open PRs when appropriate; do not merge unless asked.
 
 ## Agent rules
 
