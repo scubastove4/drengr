@@ -1,0 +1,42 @@
+---
+description: Git branching strategy: one release branch per phase, feature branches off each release branch
+alwaysApply: true
+---
+
+# Branching strategy
+
+Phases and their order are defined in `project-overview.mdc`. Don't redefine them here; refer to them by the names and numbers used there.
+
+## Transition
+
+Phases 1-2 were developed before this strategy existed. Until Phase 2 is merged to `main`, keep working on the current branch and ignore the rules below about branch structure, flow, and direct commits. The strategy applies in full from Phase 3: the first release branch under it is `release/phase-3-<short-name>`, cut from `main` after Phase 2 is merged.
+
+(Delete this section once Phase 3 has started.)
+
+## Structure
+
+- `main` holds completed phases only.
+- Each phase has one **release branch**: `release/phase-<n>-<short-name>`, using the phase number and name from `project-overview.mdc`. It is cut from `main` when the phase starts.
+- All work happens on **feature branches** cut from the current phase's release branch: `feature/<short-description>`.
+- Keep each feature branch to one focused change.
+
+## Flow
+
+1. Cut `release/phase-<n>-<short-name>` from `main` at the start of a phase.
+2. Cut `feature/<short-description>` from that release branch.
+3. When the feature is done, open a pull request into the release branch. Tests must pass first.
+4. Merge the feature into the release branch with a **squash merge**. Delete the feature branch afterward and don't reuse it; start a new branch for follow-up work.
+5. When the phase is complete, merge the release branch into `main` with a **merge commit** (no squash), so each feature's commit stays visible in `main`'s history.
+6. Cut the next phase's release branch from `main` only after the previous phase has been merged.
+
+## Merge style
+
+- Feature into release: squash merge, one clean commit per feature.
+- Release into main: merge commit, no squash, so features remain traceable and revertable individually.
+
+## Agent rules
+
+- Never commit directly to `main` or any `release/*` branch.
+- Never force-push, rewrite history on shared branches, or delete branches without asking.
+- Don't create, merge, or delete branches unless asked. When asked to start work, confirm which phase and release branch to base it on.
+- If the current branch isn't a `feature/*` branch, say so before making changes and ask which branch to use.

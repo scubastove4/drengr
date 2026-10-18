@@ -145,3 +145,7 @@ Match flow is staged. Do not treat the map as always-editable once a match has s
 - CocoaPods must be the Homebrew version (1.16+); the old gem 1.10.2 under system Ruby 2.6 fails. The `ios` and `ios:pods` scripts prepend Homebrew to `PATH` and set `SSL_CERT_FILE`.
 - Node version: `.nvmrc` = 24.15.0.
 - Simulator GPS is fake (defaults near San Francisco); test real location on a physical device.
+
+## Branching
+
+- See `git-branching.mdc`.
