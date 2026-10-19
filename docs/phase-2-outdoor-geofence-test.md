@@ -23,8 +23,22 @@ You do **not** need Location “Always” or background location modes for this 
    npx expo start --dev-client
    ```
 
-6. Confirm Metro shows a LAN URL (hotspot subnet), not only `localhost`.
-7. Open **Drengr** on the phone. If you see “No script URL”, set the bundler host to the Mac’s hotspot IP and port `8081` (shake device → configure bundler), or reload after Metro is up.
+6. **Check Metro’s URL in the terminal** (the window where `expo start` is running). Look for a line like:
+
+   ```text
+   Metro waiting on exp://192.168.x.x:8081
+   ```
+
+   or (dev client) something with `http://192.168.x.x:8081`.
+
+   - **Good:** an IP that is **not** `127.0.0.1` / `localhost` — often `172.20.10.x` on iPhone Personal Hotspot, or `192.168.x.x` on home Wi‑Fi.
+   - **Bad / incomplete:** only `localhost` or `127.0.0.1`. The phone cannot reach that. Join the hotspot first, then restart Metro (`Ctrl+C`, then `npx expo start --dev-client` again). Press `s` if it says Expo Go so it targets the **development build**.
+
+   To see the Mac’s IP yourself: **System Settings → Wi‑Fi →** your hotspot network **→ Details** (IP address), or in Terminal: `ipconfig getifaddr en0` (try `en1` if empty).
+
+7. Open **Drengr** on the phone (app icon — not Expo Go). If the map loads, you’re connected. If you see **“No script URL”**:
+   - Shake the phone (or the device’s developer menu gesture) → **Configure bundler** / enter host → type the Mac IP from step 6 and port **`8081`**, e.g. `172.20.10.2:8081`.
+   - Or force-quit Drengr and reopen after Metro is up.
 8. Location permission: **While Using the App**.
 9. In `__DEV__` you should see:
    - **Solid** outline = true arena  
