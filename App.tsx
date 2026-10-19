@@ -64,7 +64,7 @@ const PLAYABLE_LINE_STYLE = {
 };
 
 /** Setup pick area → setup place arena → gameplay. Home comes later. */
-type Phase = "setup-locate" | "setup-place" | "playing";
+type Phase = "setup-locate" | "setup-place" | "lobby" | "playing";
 
 function asLngLat(pos: GeoJSON.Position | null | undefined): [number, number] | null {
   if (
@@ -164,7 +164,8 @@ export default function App() {
   }, [phase]);
 
   const panLocked = phase === "setup-place";
-  const showArena = phase === "setup-place" || phase === "playing";
+  const showArena =
+    phase === "setup-place" || phase === "lobby" || phase === "playing";
   const showPlacePin = phase === "setup-place" && arenaCenter != null;
 
   const confirmLocation = () => {
@@ -178,12 +179,21 @@ export default function App() {
 
   const confirmArena = () => {
     if (!arenaCenter) return;
+    setPhase("lobby");
+  };
+
+  const startMatch = () => {
+    if (!arenaCenter) return;
     setPhase("playing");
   };
 
   const backToLocate = () => {
     setArenaCenter(null);
     setPhase("setup-locate");
+  };
+
+  const backToPlace = () => {
+    setPhase("setup-place");
   };
 
   const hudLines = useMemo(() => {
@@ -202,7 +212,9 @@ export default function App() {
       ? "Pan the map, then confirm this area"
       : phase === "setup-place"
         ? "Tap to move · pinch to zoom · then confirm"
-        : null;
+        : phase === "lobby"
+          ? "Arena locked · Start match when ready"
+          : null;
 
   const geofenceLabel =
     geofenceStatus === "violating"
@@ -417,6 +429,16 @@ export default function App() {
             </Pressable>
             <Pressable style={styles.button} onPress={confirmArena}>
               <Text style={styles.buttonLabel}>Confirm arena</Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {phase === "lobby" ? (
+          <View style={styles.actionRow}>
+            <Pressable style={styles.buttonSecondary} onPress={backToPlace}>
+              <Text style={styles.buttonLabel}>Edit arena</Text>
+            </Pressable>
+            <Pressable style={styles.button} onPress={startMatch}>
+              <Text style={styles.buttonLabel}>Start match</Text>
             </Pressable>
           </View>
         ) : null}
