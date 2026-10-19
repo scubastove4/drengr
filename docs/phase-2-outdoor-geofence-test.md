@@ -36,9 +36,19 @@ You do **not** need Location “Always” or background location modes for this 
 
    To see the Mac’s IP yourself: **System Settings → Wi‑Fi →** your hotspot network **→ Details** (IP address), or in Terminal: `ipconfig getifaddr en0` (try `en1` if empty).
 
-7. Open **Drengr** on the phone (app icon — not Expo Go). If the map loads, you’re connected. If you see **“No script URL”**:
-   - Shake the phone (or the device’s developer menu gesture) → **Configure bundler** / enter host → type the Mac IP from step 6 and port **`8081`**, e.g. `172.20.10.2:8081`.
-   - Or force-quit Drengr and reopen after Metro is up.
+7. **Launch via Xcode (recommended if the app shows “No script URL”).** With Metro already running and the Mac on the hotspot:
+   1. Plug the iPhone in over USB (unlock + Trust if asked).
+   2. Open the workspace: `open ios/Drengr.xcworkspace` (use **`.xcworkspace`**, not `.xcodeproj`).
+   3. In the Xcode toolbar, select your **iPhone** as the run destination (not a simulator).
+   4. Press **Run** (▶). Xcode installs/launches Drengr and usually wires it to Metro so the script URL error goes away.
+   5. You can unplug afterward if the phone stays on the hotspot and Metro stays up; keep the Mac awake.
+
+   **Alternatives** if you prefer not to use Xcode for this step:
+   - Scan the QR code in the Metro terminal with the iPhone Camera, then open in the Drengr dev client.
+   - Open this deep link on the phone (IP must match step 6), e.g.  
+     `dev.drengr.app://expo-development-client/?url=http://172.20.10.3:8081`
+   - Shake / three-finger tap → Configure bundler → `MAC_IP:8081` (shake is unreliable on some iPhones).
+
 8. Location permission: **While Using the App**.
 9. In `__DEV__` you should see:
    - **Solid** outline = true arena  
@@ -68,6 +78,25 @@ Record pass/fail and rough notes (time of day, sky, anything odd). Banner labels
 | 7 | (Optional) Revoke location in Settings mid-`pending`/`violating` | Document what happens; full AppState re-check may still be unfinished |
 
 Already verified indoors/on device (no need to re-prove unless regressing): standing between true and buffer shows in-bounds.
+
+## Results log
+
+### Outing 1 (quick pass — retest before closing Phase 2)
+
+| Check | Result | Notes |
+|---|---|---|
+| Confirm location | Pass | |
+| Place arena | Pass | |
+| Lobby until Start match | Pass | |
+| Near true boundary → warning | Pass | |
+| Leave near-edge zone → warning clears | Pass | Felt late — banner stayed until well past ~15 m (likely GPS / 5 m sampling lag) |
+| Between buffer and true → no violation | Pass | Banner sequence messy: can show Near boundary then In bounds while in the soft shoulder |
+| Leave buffer → “Leaving arena…” | Pass | |
+| Sit ~2.5 s → OUT OF BOUNDS | Pass | |
+| Violation clears after re-entering | Pass | Didn’t note whether clear used buffer or true boundary — check next outing |
+| Start match already outside buffer → flag | **Not run** | Do next outing (checklist #6) |
+
+**General notes (outing 1):** Good overall; need a second walk. Switching to other apps left the match in memory; **force-closing Drengr ended the match** (expected without persistence). Product follow-ups: **End match** button; do not rely on blocking iOS force-quit (impossible) — later optional persist/resume if wanted.
 
 ## Later: Phase 3 multiplayer check
 
