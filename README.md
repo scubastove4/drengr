@@ -92,7 +92,7 @@ If you see **“No script URL provided”**, the usual fix is: Metro running →
 1. **Pick area** — pan/zoom the map, Confirm area  
 2. **Place arena** — 120 m stock square; tap to move; Confirm arena  
 3. **Lobby** — arena locked; geofence off; **Start match** when ready; **Change area** restarts full setup  
-4. **Gameplay** — geofence on (grace period, playable buffer, near-edge banner). **☰** menu → End match (confirm) returns to lobby.
+4. **Gameplay** — geofence on (grace period, playable buffer; banners for near-edge / leaving / OOB; calm In bounds is `__DEV__`-only). **☰** menu → End match (confirm) returns to lobby.
 
 In `__DEV__`, a dashed outline shows the invisible +5 m playable buffer. Release builds show the true arena only.
 

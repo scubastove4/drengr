@@ -84,6 +84,7 @@ Go backend order: shot validation first (most cheat-prone), then stats, then are
 - **True boundary:** the placed stock square (GeoJSON). Drawn on the map; source of truth for “the arena” players see.
 - **Playable boundary:** true boundary expanded outward by `BOUNDARY_BUFFER_M` (~5 m). Used only for violation `inside` checks (`step`/`tick`). Invisible in release builds. In **`__DEV__`**, draw a distinct second outline (e.g. dashed/dimmer) so outdoor testing can see where the soft shoulder ends; production/TestFlight release must show the true boundary only.
 - **Near-edge warning:** if the player is **inside the true boundary** and within `NEAR_EDGE_WARNING_M` (~15 m) of the true edge → show a **banner** (Phase 2). Presentation only — must never feed geofence machine state. Not shown when outside the true arena (including in the soft buffer).
+- **Gameplay HUD:** show banners only for near-edge, pending (“Leaving arena…”), and violation. Calm **In bounds** is **`__DEV__`-only** — release builds stay silent when safe (no banner distraction). Soft-shoulder (between true and playable) is intentionally silent in release; do not invent soft-shoulder warning copy unless outdoor tests force it.
 - **Future warning visual (not now):** optional map treatment such as a red gradient between the player’s GPS position and the true boundary; ask before implementing.
 
 Tune 5 m / 15 m after outdoor testing if needed.
@@ -120,7 +121,7 @@ Match flow is staged. Do not treat the map as always-editable once a match has s
 - **End match** control in gameplay — overflow menu + confirm → lobby.
 - Unit tests for remaining game/glue code that should have them — pure geofence + `useGeofence` covered; `App.tsx` / `useGameLocation` deferred (UI / Expo device wrappers).
 - Project **README** — draft at `README.md` (review/iterate).
-- Near-edge banner feel is “messy” outdoors (late clear; soft-shoulder shows In bounds after Near boundary) — tune only after second outing if still painful.
+- Near-edge banner feel outdoors (late clear) — tune only after second outing if still painful. Soft-shoulder no longer shows calm **In bounds** in release (dev-only).
 
 **Deferred presentation / UI (document only — ask before implementing):**
 - Arena fill off / transparent interior with border only; tighter gameplay camera zoom so the player’s “field of view” is smaller and the full square is not always on screen.

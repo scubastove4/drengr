@@ -123,7 +123,7 @@ Two geometries (see project overview):
 
 - Pure helper e.g. `isNearTrueEdge(coord, trueBoundary, warningM)` using `pointToPolygonDistance` from `@turf/turf` with `units: 'meters'`. In the installed Turf version, distance is **negative inside** the polygon and **positive outside**. Warn only when **inside the true boundary** and within `NEAR_EDGE_WARNING_M` of the edge (e.g. `-warningM <= distance <= 0`). Do **not** warn when outside the true arena (including soft buffer).
 - Must never call `step`/`tick` or alter geofence status.
-- Phase 2 UI: **banner** only. Future (document only): map visual such as a red gradient between the player GPS position and the true boundary — ask before implementing.
+- Phase 2 UI: **banner** for near-edge, pending, and violation. Calm **In bounds** banner is **`__DEV__`-only**; release gameplay stays silent when safe. Soft-shoulder between true and playable is silent in release (no extra warning copy unless outdoor tests force it). Future (document only): map visual such as a red gradient between the player GPS position and the true boundary — ask before implementing.
 
 Confirm units/sign in typings before relying on other Turf distance helpers. Don't invent buffer meters beyond the named config constants.
 

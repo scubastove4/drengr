@@ -229,6 +229,12 @@ export default function App() {
           ? "Arena locked · Start match when ready"
           : null;
 
+  const geofenceAlert =
+    geofenceStatus === "violating" ||
+    geofenceStatus === "pending" ||
+    nearTrueEdge;
+  /** Calm "In bounds" is __DEV__-only; release stays silent when safe. */
+  const showGeofenceBanner = geofenceAlert || __DEV__;
   const geofenceLabel =
     geofenceStatus === "violating"
       ? "OUT OF BOUNDS"
@@ -397,30 +403,32 @@ export default function App() {
       ) : null}
 
       {phase === "playing" ? (
-        <View
-          style={[
-            styles.geofenceBanner,
-            geofenceStatus === "violating" && styles.geofenceBannerViolating,
-            geofenceStatus === "pending" && styles.geofenceBannerPending,
-            geofenceStatus === "inside" &&
-              nearTrueEdge &&
-              styles.geofenceBannerNearEdge,
-          ]}
-          pointerEvents="none"
-        >
-          <Text
+        showGeofenceBanner ? (
+          <View
             style={[
-              styles.geofenceBannerText,
-              geofenceStatus === "violating" &&
-                styles.geofenceBannerTextViolating,
+              styles.geofenceBanner,
+              geofenceStatus === "violating" && styles.geofenceBannerViolating,
+              geofenceStatus === "pending" && styles.geofenceBannerPending,
               geofenceStatus === "inside" &&
                 nearTrueEdge &&
-                styles.geofenceBannerTextNearEdge,
+                styles.geofenceBannerNearEdge,
             ]}
+            pointerEvents="none"
           >
-            {geofenceLabel}
-          </Text>
-        </View>
+            <Text
+              style={[
+                styles.geofenceBannerText,
+                geofenceStatus === "violating" &&
+                  styles.geofenceBannerTextViolating,
+                geofenceStatus === "inside" &&
+                  nearTrueEdge &&
+                  styles.geofenceBannerTextNearEdge,
+              ]}
+            >
+              {geofenceLabel}
+            </Text>
+          </View>
+        ) : null
       ) : (
         <View style={styles.geofenceBanner} pointerEvents="none">
           <Text style={styles.geofenceBannerText}>{phaseHint}</Text>
