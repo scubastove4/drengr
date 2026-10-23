@@ -79,7 +79,15 @@ export function useGeofence(
 
   // Fix / boundary updates
   useEffect(() => {
-    if (!fix || !boundary) return;
+    if (!boundary) {
+      // Match not active (setup/lobby) — stop grace timer; don't leave sticky pending.
+      clearTimer();
+      if (stateRef.current.status !== "inside") {
+        applyResult({ state: { status: "inside" }, event: null });
+      }
+      return;
+    }
+    if (!fix) return;
 
     const prevStatus = stateRef.current.status;
     const geofenceFix = toFix(fix);

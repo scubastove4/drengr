@@ -118,8 +118,8 @@ Match flow is staged. Do not treat the map as always-editable once a match has s
 **Phase 2 wrap-up (before calling the phase done — ask before starting each):**
 - Second outdoor outing (start-outside-buffer, clearer buffer-vs-true clear, near-edge lag notes) — see test doc results log.
 - **End match** control in gameplay.
-- Unit tests for remaining game/glue code that should have them (`.ts` / `.tsx` without coverage where logic warrants it).
-- Project **README** (or equivalent app markdown) for humans cloning/running the project.
+- Unit tests for remaining game/glue code that should have them — pure geofence + `useGeofence` covered; `App.tsx` / `useGameLocation` deferred (UI / Expo device wrappers).
+- Project **README** — draft at `README.md` (review/iterate).
 - Near-edge banner feel is “messy” outdoors (late clear; soft-shoulder shows In bounds after Near boundary) — tune only after second outing if still painful.
 
 **Deferred presentation / UI (document only — ask before implementing):**
@@ -144,7 +144,7 @@ Match flow is staged. Do not treat the map as always-editable once a match has s
 - Keep rules logic (geofence, hit range, distance tracking, anti-cheat checks) in pure functions with no React, Expo, Mapbox or `Date.now()`, so it's unit-testable and can later move to the Go server.
 - Runner: Jest via `jest-expo` (preset in `package.json`, `npm test`). Installed with Jest 29 (`jest@~29.7`, `@types/jest@29.5`).
 - Co-locate tests as `*.test.ts`. Use fixed timestamps and synthetic data; no real timers or devices in unit tests. Don't mock Turf.
-- Hook/component tests later: `@testing-library/react-native` (check its peer dependencies). Don't test against `react-test-renderer` directly; it's deprecated in React 19.
+- Hook tests: `@testing-library/react-native` (v14+ `renderHook` is async — `await renderHook(...)`). Don't test against `react-test-renderer` directly; RNTL 14 uses the `test-renderer` peer.
 
 ## Dev environment notes
 
