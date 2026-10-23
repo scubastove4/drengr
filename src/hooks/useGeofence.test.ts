@@ -30,6 +30,8 @@ const INSIDE: GameLocationFix = {
   timestamp: 1_000_000,
 };
 
+type HookResult = { status: "inside" | "pending" | "violating" };
+
 describe("useGeofence", () => {
   beforeEach(() => {
     jest.useFakeTimers();
@@ -41,14 +43,15 @@ describe("useGeofence", () => {
   });
 
   it("null fix or null boundary is a no-op (stays inside)", async () => {
-    const { result, rerender } = await renderHook(
+    type Props = {
+      fix: GameLocationFix | null;
+      boundary: typeof BOUNDARY | null;
+    };
+    const { result, rerender } = await renderHook<HookResult, Props>(
       ({ fix, boundary }) =>
         useGeofence(fix, boundary, { permissionGranted: true }),
       {
-        initialProps: {
-          fix: null as GameLocationFix | null,
-          boundary: BOUNDARY as typeof BOUNDARY | null,
-        },
+        initialProps: { fix: null, boundary: BOUNDARY },
       },
     );
     expect(result.current?.status).toBe("inside");
@@ -62,7 +65,7 @@ describe("useGeofence", () => {
     // Stale GPS timestamp: well before Date.now() (2_000_000).
     const staleOut: GameLocationFix = { ...OUTSIDE, timestamp: 1000 };
 
-    const { result } = await renderHook(() =>
+    const { result } = await renderHook<HookResult, void>(() =>
       useGeofence(staleOut, BOUNDARY, { permissionGranted: true, onEvent }),
     );
 
@@ -86,7 +89,8 @@ describe("useGeofence", () => {
 
   it("clears pending timer when returning inside before grace", async () => {
     const onEvent = jest.fn();
-    const { result, rerender } = await renderHook(
+    type Props = { fix: GameLocationFix };
+    const { result, rerender } = await renderHook<HookResult, Props>(
       ({ fix }) =>
         useGeofence(fix, BOUNDARY, { permissionGranted: true, onEvent }),
       { initialProps: { fix: OUTSIDE } },
@@ -105,7 +109,7 @@ describe("useGeofence", () => {
 
   it("clears timer on unmount without raising a late violation", async () => {
     const onEvent = jest.fn();
-    const { result, unmount } = await renderHook(() =>
+    const { result, unmount } = await renderHook<HookResult, void>(() =>
       useGeofence(OUTSIDE, BOUNDARY, { permissionGranted: true, onEvent }),
     );
     expect(result.current?.status).toBe("pending");
@@ -119,14 +123,11 @@ describe("useGeofence", () => {
 
   it("resets and clears timer when boundary becomes null while pending", async () => {
     const onEvent = jest.fn();
-    const { result, rerender } = await renderHook(
+    type Props = { boundary: typeof BOUNDARY | null };
+    const { result, rerender } = await renderHook<HookResult, Props>(
       ({ boundary }) =>
         useGeofence(OUTSIDE, boundary, { permissionGranted: true, onEvent }),
-      {
-        initialProps: {
-          boundary: BOUNDARY as typeof BOUNDARY | null,
-        },
-      },
+      { initialProps: { boundary: BOUNDARY } },
     );
     expect(result.current?.status).toBe("pending");
 
@@ -142,7 +143,8 @@ describe("useGeofence", () => {
 
   it("force-violates when permission is revoked while pending", async () => {
     const onEvent = jest.fn();
-    const { result, rerender } = await renderHook(
+    type Props = { granted: boolean };
+    const { result, rerender } = await renderHook<HookResult, Props>(
       ({ granted }) =>
         useGeofence(OUTSIDE, BOUNDARY, {
           permissionGranted: granted,
@@ -161,7 +163,8 @@ describe("useGeofence", () => {
 
   it("does not emit a second violation-started if already violating on revoke", async () => {
     const onEvent = jest.fn();
-    const { result, rerender } = await renderHook(
+    type Props = { granted: boolean };
+    const { result, rerender } = await renderHook<HookResult, Props>(
       ({ granted }) =>
         useGeofence(OUTSIDE, BOUNDARY, {
           permissionGranted: granted,
@@ -183,7 +186,8 @@ describe("useGeofence", () => {
 
   it("emits violation-cleared when returning inside after violating", async () => {
     const onEvent = jest.fn();
-    const { result, rerender } = await renderHook(
+    type Props = { fix: GameLocationFix };
+    const { result, rerender } = await renderHook<HookResult, Props>(
       ({ fix }) =>
         useGeofence(fix, BOUNDARY, { permissionGranted: true, onEvent }),
       { initialProps: { fix: OUTSIDE } },

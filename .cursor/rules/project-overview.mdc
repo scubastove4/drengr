@@ -112,12 +112,12 @@ Match flow is staged. Do not treat the map as always-editable once a match has s
 2. **Setup — pick area:** user pans/zooms the map freely to choose where to play, then confirms. May be done at home before anyone is at the play site.
 3. **Setup — place arena:** on confirm, `fitBounds` so the full 120 m stock square is on screen (with padding). Pan/scroll stays locked; **zoom stays enabled**. Camera must not glue to the moving pin. User taps the map to move the arena center, then confirms placement. That locks the arena coordinates. (Pin drag is unreliable with pan locked on Mapbox RN, so tap-to-place is the supported control.)
 4. **Lobby (host ready):** arena is locked and visible; map may pan again. Geofence is **off**. Host taps **Start match** when everyone is at the site and ready (Phase 2: no invite UI yet — that is Phase 3 / home).
-5. **Gameplay:** geofence on. Anyone outside the playable boundary when the match starts (or who leaves later) gets the normal pending → violation flow. Arena stays fixed; camera may follow the user. Host should be able to **End match** (return to lobby or setup — exact target TBD when implemented); do not rely on force-quitting the app.
+5. **Gameplay:** geofence on. Anyone outside the playable boundary when the match starts (or who leaves later) gets the normal pending → violation flow. Arena stays fixed; camera may follow the user. **End match** lives in a small overflow/hamburger menu (not a primary on-screen button) with a confirm step, then returns to **lobby** (arena still placed; geofence off). Do not rely on force-quitting the app.
 6. Match state today is in-memory only: backgrounding may leave the session alive until iOS reclaims it; **force-quit always ends the session**. Apps cannot block iOS force-quit. Surviving force-quit would mean explicit persist/resume (later; natural fit with Phase 3+).
 
 **Phase 2 wrap-up (before calling the phase done — ask before starting each):**
 - Second outdoor outing (start-outside-buffer, clearer buffer-vs-true clear, near-edge lag notes) — see test doc results log.
-- **End match** control in gameplay.
+- **End match** control in gameplay — overflow menu + confirm → lobby.
 - Unit tests for remaining game/glue code that should have them — pure geofence + `useGeofence` covered; `App.tsx` / `useGameLocation` deferred (UI / Expo device wrappers).
 - Project **README** — draft at `README.md` (review/iterate).
 - Near-edge banner feel is “messy” outdoors (late clear; soft-shoulder shows In bounds after Near boundary) — tune only after second outing if still painful.

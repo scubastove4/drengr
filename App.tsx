@@ -15,6 +15,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Platform,
   Pressable,
@@ -81,6 +82,7 @@ function asLngLat(pos: GeoJSON.Position | null | undefined): [number, number] | 
 export default function App() {
   const [mapReady, setMapReady] = useState(false);
   const [phase, setPhase] = useState<Phase>("setup-locate");
+  const [menuOpen, setMenuOpen] = useState(false);
   const [arenaCenter, setArenaCenter] = useState<[number, number] | null>(
     null,
   );
@@ -184,15 +186,30 @@ export default function App() {
 
   const startMatch = () => {
     if (!arenaCenter) return;
+    setMenuOpen(false);
     setPhase("playing");
+  };
+
+  const endMatch = () => {
+    setMenuOpen(false);
+    setPhase("lobby");
+  };
+
+  const confirmEndMatch = () => {
+    Alert.alert("End match?", "Geofence will stop. The arena stays placed.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "End match", style: "destructive", onPress: endMatch },
+    ]);
   };
 
   const backToLocate = () => {
     setArenaCenter(null);
+    setMenuOpen(false);
     setPhase("setup-locate");
   };
 
   const backToPlace = () => {
+    setMenuOpen(false);
     setPhase("setup-place");
   };
 
@@ -412,6 +429,35 @@ export default function App() {
         </View>
       )}
 
+      {phase === "playing" ? (
+        <View style={styles.menuAnchor} pointerEvents="box-none">
+          <Pressable
+            style={styles.menuButton}
+            onPress={() => setMenuOpen((open) => !open)}
+            accessibilityLabel="Match menu"
+          >
+            <Text style={styles.menuButtonLabel}>☰</Text>
+          </Pressable>
+          {menuOpen ? (
+            <>
+              <Pressable
+                style={styles.menuDismiss}
+                onPress={() => setMenuOpen(false)}
+                accessibilityLabel="Dismiss menu"
+              />
+              <View style={styles.menuPanel}>
+                <Pressable
+                  style={styles.menuItem}
+                  onPress={confirmEndMatch}
+                >
+                  <Text style={styles.menuItemLabelDanger}>End match</Text>
+                </Pressable>
+              </View>
+            </>
+          ) : null}
+        </View>
+      ) : null}
+
       <View style={styles.bottomChrome}>
         {phase === "setup-locate" ? (
           <Pressable
@@ -486,11 +532,60 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(11,15,20,0.35)",
   },
+  menuAnchor: {
+    position: "absolute",
+    top: 56,
+    right: 12,
+    zIndex: 20,
+    alignItems: "flex-end",
+  },
+  menuButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: "rgba(11,15,20,0.88)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  menuButtonLabel: {
+    color: "#e8eef7",
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  menuDismiss: {
+    ...StyleSheet.absoluteFillObject,
+    // Cover the screen so taps outside the panel close the menu.
+    position: "absolute",
+    top: -56,
+    right: -12,
+    bottom: -800,
+    left: -400,
+  },
+  menuPanel: {
+    marginTop: 8,
+    minWidth: 160,
+    borderRadius: 10,
+    backgroundColor: "rgba(11,15,20,0.96)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.18)",
+    overflow: "hidden",
+  },
+  menuItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  menuItemLabelDanger: {
+    color: "#ff8a7a",
+    fontSize: 15,
+    fontWeight: "600",
+  },
   geofenceBanner: {
     position: "absolute",
     top: 56,
     left: 12,
-    right: 12,
+    right: 60,
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 10,
