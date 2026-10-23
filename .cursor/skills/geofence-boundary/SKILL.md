@@ -129,7 +129,7 @@ Confirm units/sign in typings before relying on other Turf distance helpers. Don
 
 ## Match phases vs geofence
 
-App flow (home → setup pick area → setup place arena → **lobby** → gameplay) lives in `.cursor/rules/project-overview.mdc`. Geofence rules apply **only after the host starts the match (gameplay)**. During setup and lobby, pass `null` / skip `step` so placing the square or waiting to start cannot raise violations. Arena coordinates lock on place-confirm; lobby does not re-enable arena edits. When gameplay begins, anyone already outside the playable boundary should enter the normal pending → violation path (including sit-still `tick`). **End match** (overflow menu + confirm) returns to lobby and must stop feeding the boundary into `useGeofence`. Invites are Phase 3 / home — not part of lobby UI in Phase 2.
+App flow (home → setup pick area → setup place arena → **lobby** → gameplay) lives in `.cursor/rules/project-overview.mdc`. Geofence rules apply **only after the host starts the match (gameplay)**. During setup and lobby, pass `null` / skip `step` so placing the square or waiting to start cannot raise violations. Arena coordinates lock on place-confirm; lobby **Change area** clears the arena and returns to pick-area (full re-setup), not place-only edits. When gameplay begins, anyone already outside the playable boundary should enter the normal pending → violation path (including sit-still `tick`). **End match** (overflow menu + confirm) returns to lobby and must stop feeding the boundary into `useGeofence`. Invites, **Leave match**, and host migration are Phase 3 — not part of Phase 2 lobby UI.
 
 ## Mapbox (React Native, `@rnmapbox/maps` 10.3.0)
 

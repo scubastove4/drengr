@@ -202,15 +202,11 @@ export default function App() {
     ]);
   };
 
+  /** Clears placed arena and returns to pick-area (full re-setup). */
   const backToLocate = () => {
     setArenaCenter(null);
     setMenuOpen(false);
     setPhase("setup-locate");
-  };
-
-  const backToPlace = () => {
-    setMenuOpen(false);
-    setPhase("setup-place");
   };
 
   const hudLines = useMemo(() => {
@@ -323,6 +319,8 @@ export default function App() {
         style={StyleSheet.absoluteFill}
         styleURL={StyleURL.Outdoors}
         compassEnabled
+        compassViewPosition={3}
+        compassViewMargins={{ x: 12, y: 200 }}
         scaleBarEnabled={false}
         logoEnabled
         attributionEnabled
@@ -480,8 +478,8 @@ export default function App() {
         ) : null}
         {phase === "lobby" ? (
           <View style={styles.actionRow}>
-            <Pressable style={styles.buttonSecondary} onPress={backToPlace}>
-              <Text style={styles.buttonLabel}>Edit arena</Text>
+            <Pressable style={styles.buttonSecondary} onPress={backToLocate}>
+              <Text style={styles.buttonLabel}>Change area</Text>
             </Pressable>
             <Pressable style={styles.button} onPress={startMatch}>
               <Text style={styles.buttonLabel}>Start match</Text>
